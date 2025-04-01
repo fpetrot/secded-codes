@@ -95,11 +95,14 @@ def check_error(syndrome):
         print("""Check bit error""")
         return 2
     #if (m10 == 0 and m10p == 0 and s.bit_count() == 3) or (m10 == 1 and m10p == 1 and s.bit_count() == 4) or (m10 == 2 and m10p == 2 and s.bit_count() == 2):
-    if (m10 == 0 and s.bit_count() == 3) or (m10 == 1 and m10p != 3 and s.bit_count() == 2):
+    #if (m10 == 0 and s.bit_count() == 3) or (m10 == 1 and m10p != 3 and s.bit_count() == 2):
+    if (m10 == 0 and s.bit_count() == 3) or (m10 == 1 and s.bit_count() == 2):
         print("""Single bit error""")
         return 3
     print("""Double bit error""")
     return 4
+
+# 
 
 # First Lala paper, as many ones (216) as in Hsiao codes, so not really interesting for 64-bit values
 # "A Single Error Correcting and Double Error Detecting Coding Scheme for Computer Memory Systems"
@@ -138,6 +141,19 @@ om[9] = [1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1, 1,1,1,1,0,0,0,0, 0,0
 # Easier to find which column matches in case of single error
 mo = np.transpose(om)
 
+"""
+# Check that the matrix does not contain twice the same value
+for i in range(0, k + r + 2):
+    row = mo[i,:] 
+    rl = row.tolist()
+    for j in range(i + 1, k + r + 2):
+        wor = mo[j,:]
+        wl = wor.tolist()
+        if rl == wl:
+            print("Duplicate !", f"row {i} {row} = row {j} {mo[j,:]}")
+
+sys.exit(1)
+
 x = 0x123456789abcdef0
 cb = compute_checkbits(om, x)
 checkbits = l2i(cb)
@@ -147,7 +163,6 @@ sy = compute_syndrome(om, bv)
 # print("Syndrome  ⇒ ", sy)
 check_error(l2i(sy))
 
-"""
 print("Testing 10000 random numbers without errors")
 for _ in range(0, 1):
     n = random.getrandbits(64)
@@ -161,7 +176,8 @@ for _ in range(0, 1):
 # Introduce single bit error
 # First in data
 print("Single bit error: syndrome contains erroneous bit column pattern")
-for x in [0x0, 0x34, 0x136, 0x5378, 0x9ef3a, 0xffffff, 0x123456789abcdef0, 0x0123456789abcdef, 0xabcdef0123456789, 0xdeadbeefcafebabe]:
+# for x in [0x0, 0x34, 0x136, 0x5378, 0x9ef3a, 0xffffff, 0x123456789abcdef0, 0x0123456789abcdef, 0xabcdef0123456789, 0xdeadbeefcafebabe]:
+for x in [0xdeadbeefcafebabe]:
     cb = compute_checkbits(om, x)
     checkbits = l2i(cb)
     for i in range(0, k):
@@ -175,7 +191,8 @@ for x in [0x0, 0x34, 0x136, 0x5378, 0x9ef3a, 0xffffff, 0x123456789abcdef0, 0x012
 
 # Then in syndrome
 print("Single bit error: syndrome contains erroneous bit column pattern")
-for x in [0x0, 0x34, 0x136, 0x5378, 0x9ef3a, 0xffffff, 0x123456789abcdef0, 0x0123456789abcdef, 0xabcdef0123456789, 0xdeadbeefcafebabe]:
+# for x in [0x0, 0x34, 0x136, 0x5378, 0x9ef3a, 0xffffff, 0x123456789abcdef0, 0x0123456789abcdef, 0xabcdef0123456789, 0xdeadbeefcafebabe]:
+for x in [0xdeadbeefcafebabe]:
     cb = compute_checkbits(om, x)
     checkbits = l2i(cb)
     for i in range(0, r + 2):
@@ -188,6 +205,8 @@ for x in [0x0, 0x34, 0x136, 0x5378, 0x9ef3a, 0xffffff, 0x123456789abcdef0, 0x012
         check_error(l2i(sy))
 
 
+"""
+"""
 print("Testing 10000 random numbers with double errors")
 for _ in range(0, 10000):
     n = random.getrandbits(64)
@@ -204,19 +223,29 @@ for _ in range(0, 10000):
         check_error(s)
 """
 
-x = 0x123456789abcdef0
-for i in range(0, k + r + 1):
-    for j in range(i + 1, k + r + 2):
-        bv = (x << r + 2) | checkbits
-        bv  = bv ^ (1 << i)
-        bv  = bv ^ (1 << j)
-        sy = compute_syndrome(om, bv)
-        s = l2i(sy[0:8])
-        # print(f"Syndrome  ⇒ ", sy[0:8], sy[8:10], "     ", f"({s.bit_count()})", np.where(np.all(mo[:,0:8] == sy[0:8], axis = 1))[0])
-        # print(f"{l2i(sy):010b}")
-        check_error(l2i(sy))
+"""
+# Then double bit errors
+print("Double bit error: syndrome contains something, let us try to find out what")
+for x in [0xdeadbeefcafebabe, 0x00000000000000000, 0xffffffffffffffff, 0x12345678987654321]:
+    cb = compute_checkbits(om, x)
+    checkbits = l2i(cb)
+    print(f'0x{x:016x}')
+    for i in range(0, k + r + 1):
+        for j in range(i + 1, k + r + 2):
+            bv = (x << r + 2) | checkbits
+            vb = bv
+            bv  = bv ^ (1 << i)
+            bv  = bv ^ (1 << j)
+            sy = compute_syndrome(om, bv)
+            s = l2i(sy[0:8])
+            # print(f"Syndrome  ⇒ ", sy[0:8], sy[8:10], "     ", f"({s.bit_count()})", np.where(np.all(mo[:,0:8] == sy[0:8], axis = 1))[0])
+            # print(f"{l2i(sy):010b}")
+            if check_error(l2i(sy)) == 0:
+                print(f'0x{bv:074b}')
+                print(f'0x{vb:074b}')
 
 
+"""
 """
 # Same as all sec-ded codes, the number of the column that matches
 # is the bit position to flip

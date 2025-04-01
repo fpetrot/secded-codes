@@ -16,7 +16,7 @@ r = 8    # Number of check bits according to theory
 
 # Dump something looking like Verilog
 def dump_verilog(pcm):
-    print("module compute_checkbits (\n",
+    print("module compute_checkbits_lala (\n",
           "    input  wire [63:0] d,\n",
           "    output wire  [8:0] c\n);\n")
 
@@ -32,7 +32,7 @@ def dump_verilog(pcm):
         print(";")
     print("endmodule")
 
-    print("module compute_syndrome (\n",
+    print("module compute_syndrome_lala (\n",
           "    input  wire [63:0] d,\n",
           "    input  wire  [8:0] c,\n",
           "    output wire  [8:0] s\n);\n")
@@ -52,7 +52,7 @@ def dump_verilog(pcm):
         print(";")
     print("endmodule")
 
-    print("module check_syndrome (\n",
+    print("module check_syndrome_lala (\n",
           "    input  wire  [8:0] syndrome,\n",
           "    output wire        ne, // no error\n",
           "    output wire        ce, // single checkbit error\n",

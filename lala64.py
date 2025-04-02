@@ -8,6 +8,7 @@
 import sys
 import numpy as np
 import random
+from contextlib import redirect_stdout
 
 np.set_printoptions(threshold=sys.maxsize)
 
@@ -16,58 +17,64 @@ r = 8    # Number of check bits according to theory
 
 # Dump something looking like Verilog
 def dump_verilog(pcm):
-    print("module compute_checkbits_lala (\n",
-          "    input  wire [63:0] d,\n",
-          "    output wire  [8:0] c\n);\n")
+    with open('compute_checkbits_lala.v', 'w') as f:
+        with redirect_stdout(f):
+            print("module compute_checkbits_lala (\n",
+                  "    input  wire [63:0] d,\n",
+                  "    output wire  [8:0] c\n);\n")
 
-    for c in range(0, r + 1):
-        print(f"assign c[{c}] = ", end='')
-        start = 0;
-        for d in range(0, k):
-            if pcm[c,d] == 1:
-                if start != 0:
-                    print(" ^ ", end='')
-                start = 1;
-                print(f"d[{k - 1 - d}]", end='')
-        print(";")
-    print("endmodule")
+            for c in range(0, r + 1):
+                print(f"assign c[{c}] = ", end='')
+                start = 0;
+                for d in range(0, k):
+                    if pcm[c,d] == 1:
+                        if start != 0:
+                            print(" ^ ", end='')
+                        start = 1;
+                        print(f"d[{k - 1 - d}]", end='')
+                print(";")
+            print("endmodule")
 
-    print("module compute_syndrome_lala (\n",
-          "    input  wire [63:0] d,\n",
-          "    input  wire  [8:0] c,\n",
-          "    output wire  [8:0] s\n);\n")
+    with open('compute_syndrome_lala.v', 'w') as f:
+        with redirect_stdout(f):
+            print("module compute_syndrome_lala (\n",
+                  "    input  wire [63:0] d,\n",
+                  "    input  wire  [8:0] c,\n",
+                  "    output wire  [8:0] s\n);\n")
 
-    for s in range(0, r + 1):
-        print(f"assign s[{s}] = ", end='')
-        start = 0;
-        for d in range(0, k + r + 1):
-            if pcm[s,d] == 1:
-                if start != 0:
-                    print(" ^ ", end='')
-                start = 1;
-                if d < k:
-                    print(f"d[{k - 1 - d}]", end='')
-                else:
-                    print(f"c[{s}]", end='')
-        print(";")
-    print("endmodule")
+            for s in range(0, r + 1):
+                print(f"assign s[{s}] = ", end='')
+                start = 0;
+                for d in range(0, k + r + 1):
+                    if pcm[s,d] == 1:
+                        if start != 0:
+                            print(" ^ ", end='')
+                        start = 1;
+                        if d < k:
+                            print(f"d[{k - 1 - d}]", end='')
+                        else:
+                            print(f"c[{s}]", end='')
+                print(";")
+            print("endmodule")
 
-    print("module check_syndrome_lala (\n",
-          "    input  wire  [8:0] syndrome,\n",
-          "    output wire        ne, // no error\n",
-          "    output wire        ce, // single checkbit error\n",
-          "    output wire        se, // single bit error\n",
-          "    output wire        de, // double bit error\n",
-          ");\n")
+    with open('check_syndrome_lala.v', 'w') as f:
+        with redirect_stdout(f):
+            print("module check_syndrome_lala (\n",
+                  "    input  wire  [8:0] syndrome,\n",
+                  "    output wire        ne, // no error\n",
+                  "    output wire        ce, // single checkbit error\n",
+                  "    output wire        se, // single bit error\n",
+                  "    output wire        de  // double bit error\n",
+                  ");\n")
 
-    print(f"wire [7:0] s = syndrome[8:1];")
-    print(f"wire [4:0] p = s[7] + s[6] + s[5] + s[4] + s[3] + s[2] + s[1] + s[0];")
-    print(f"wire       m = syndrome[0];")
-    print(f"assign ne = syndrome == 0;")
-    print(f"assign ce = (m == 0 && p == 1) || (m == 1 && s == 0);")
-    print(f"assign se = (m == 0 && p == 3) || (m == 1 && p == 2);")
-    print(f"assign de =  ~(ne | ce | se);")
-    print("endmodule")
+            print(f"wire [7:0] s = syndrome[8:1];")
+            print(f"wire [4:0] p = s[7] + s[6] + s[5] + s[4] + s[3] + s[2] + s[1] + s[0];")
+            print(f"wire       m = syndrome[0];")
+            print(f"assign ne = syndrome == 0;")
+            print(f"assign ce = (m == 0 && p == 1) || (m == 1 && s == 0);")
+            print(f"assign se = (m == 0 && p == 3) || (m == 1 && p == 2);")
+            print(f"assign de = ~(ne | ce | se);")
+            print("endmodule")
 
 
 # For the check and syndrome functions, order matters

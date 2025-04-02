@@ -11,6 +11,7 @@
 import sys
 import numpy as np
 import random
+from contextlib import redirect_stdout
 
 np.set_printoptions(threshold=sys.maxsize)
 
@@ -19,53 +20,60 @@ r = 8    # Number of check bits according to theory
 
 # Dump something looking like Verilog
 def dump_verilog(pcm):
-    print("module compute_checkbits_hsiao (\n",
-          "    input  wire [63:0] d,\n",
-          "    output wire  [7:0] c\n);\n")
+    # Looks like we need to have several independent files
+    with open('compute_checkbits_hsiao.v', 'w') as f:
+        with redirect_stdout(f):
+            print("module compute_checkbits_hsiao (\n",
+                  "    input  wire [63:0] d,\n",
+                  "    output wire  [7:0] c\n);\n")
 
-    for c in range(0, r):
-        print(f"assign c[{c}] = ", end='')
-        start = 0;
-        for d in range(0, k):
-            if pcm[c,d] == 1:
-                if start != 0:
-                    print(" ^ ", end='')
-                start = 1;
-                print(f"d[{k - 1 - d}]", end='')
-        print(";")
-    print("endmodule")
+            for c in range(0, r):
+                print(f"assign c[{c}] = ", end='')
+                start = 0;
+                for d in range(0, k):
+                    if pcm[c,d] == 1:
+                        if start != 0:
+                            print(" ^ ", end='')
+                        start = 1;
+                        print(f"d[{k - 1 - d}]", end='')
+                print(";")
+            print("endmodule")
 
-    print("module compute_syndrome_hsiao (\n",
-          "    input  wire [63:0] d,\n",
-          "    input  wire  [7:0] c,\n",
-          "    output wire  [7:0] s\n);\n")
+    with open('compute_syndrome_hsiao.v', 'w') as f:
+        with redirect_stdout(f):
+            print("module compute_syndrome_hsiao (\n",
+                  "    input  wire [63:0] d,\n",
+                  "    input  wire  [7:0] c,\n",
+                  "    output wire  [7:0] s\n);\n")
 
-    for s in range(0, r):
-        print(f"assign s[{s}] = ", end='')
-        start = 0;
-        for d in range(0, k + r):
-            if pcm[s,d] == 1:
-                if start != 0:
-                    print(" ^ ", end='')
-                start = 1;
-                if d < k:
-                    print(f"d[{k - 1 - d}]", end='')
-                else:
-                    print(f"c[{s}]", end='')
-        print(";")
-    print("endmodule")
+            for s in range(0, r):
+                print(f"assign s[{s}] = ", end='')
+                start = 0;
+                for d in range(0, k + r):
+                    if pcm[s,d] == 1:
+                        if start != 0:
+                            print(" ^ ", end='')
+                        start = 1;
+                        if d < k:
+                            print(f"d[{k - 1 - d}]", end='')
+                        else:
+                            print(f"c[{s}]", end='')
+                print(";")
+            print("endmodule")
 
-    print("module check_syndrome_hsiao (\n",
-          "    input  wire  [7:0] syndrome,\n",
-          "    output wire        ne, // no error\n",
-          "    output wire        se, // single bit error\n",
-          "    output wire        de, // double bit error\n",
-          ");\n")
+    with open('check_syndrome_hsiao.v', 'w') as f:
+        with redirect_stdout(f):
+            print("module check_syndrome_hsiao (\n",
+                  "    input  wire  [7:0] syndrome,\n",
+                  "    output wire        ne, // no error\n",
+                  "    output wire        se, // single bit error\n",
+                  "    output wire        de  // double bit error\n",
+                  ");\n")
 
-    print(f"assign ne = syndrome == 0;")
-    print(f"assign se = syndrome[7] ^ syndrome[6] ^ syndrome[5] ^ syndrome[4] ^ syndrome[3] ^ syndrome[2] ^syndrome[1] ^ syndrome[0];")
-    print(f"assign de = (syndrome == 0) && !se;")
-    print("endmodule")
+            print(f"assign ne = syndrome == 0;")
+            print(f"assign se = syndrome[7] ^ syndrome[6] ^ syndrome[5] ^ syndrome[4] ^ syndrome[3] ^ syndrome[2] ^syndrome[1] ^ syndrome[0];")
+            print(f"assign de = (syndrome == 0) && !se;")
+            print("endmodule")
 
 
 # For the check and syndrome functions, order matters

@@ -19,30 +19,44 @@ r = 8    # Number of check bits according to theory
 # Following the lowrisc example, we concatenate the check bits
 # on the MSB, as opposed to what the matrix says, but this
 # should not change much
-def dump_verilog(pcm, mpc):
-    with open('prim_secded_lala_73_64_enc.v', 'w') as f:
+def dump_verilog(name, pcm):
+    cmp = 1
+    mpc = np.transpose(pcm)
+    with open(f'prim_secded_{name}_73_64_enc.sv', 'w') as f:
         with redirect_stdout(f):
-            print("module prim_secded_lala_73_64_enc (\n"
+            print(f"module prim_secded_{name}_73_64_enc (\n"
                   "    input  logic [63:0] in,\n"
                   "    output logic [72:0] out\n);\n"
                   "    always_comb begin : p_encode\n"
                   "        out[63:0] = in;" )
             for c in range(0, r + 1):
                 print(f"        out[{72 - c}] = ^(in & 64'h{l2u(pcm[c][9:73]):016x});")
-            print("    end\nendmodule : prim_secded_lala_73_64_enc")
+            print(f"    end\nendmodule : prim_secded_{name}_73_64_enc")
 
-    with open('prim_secded_lala_73_64_dec.v', 'w') as f:
+    with open(f'prim_secded_{name}_73_64_dec.sv', 'w') as f:
         with redirect_stdout(f):
-            print("module prim_secded_lala_73_64_dec (\n"
+            print(f"module prim_secded_{name}_73_64_dec (\n"
                   "    input  logic [72:0] in,\n"
                   "    output logic [63:0] d_o,\n"
                   "    output logic  [8:0] syndrome_o,\n"
-                  "    output logic  [1:0] err_o \n);\n")
+                  "    output logic  [1:0] err_o\n);\n")
 
             for s in range(0, r + 1):
                 print(f"    assign syndrome_o[{8 - s}] = ^(in & 73'h{l2u(pcm[s][0:73]):019x});")
             for d in range(0, k):
-                print(f"    assign d_o[{d}] = (syndrome_o == 9'h{l2i(pcm[:,72 - d]):03x}) ^ in[{d}];")
+                if cmp == 1:
+                    print(f"    assign d_o[{d}] = (syndrome_o == 9'h{l2i(pcm[:,72 - d]):03x}) ^ in[{d}];")
+                else:
+                    print(f"    assign d_o[{d}] = (", end='')
+                    n = 0
+                    t = len(pcm[:,72 - d]) - 1
+                    for i,b in enumerate(pcm[:,72 - d]):
+                        if b:
+                            n = n + 1
+                            print(f"syndrome_o[{t - i}]", end='')
+                            if n < 3:
+                                print(" & ", end='')
+                    print(f") ^ in[{d}];")
 
             print("    logic       ne = syndrome_o == 0;")
             # We don't really care whether the error is in the checkbits or residue bit
@@ -53,25 +67,40 @@ def dump_verilog(pcm, mpc):
             # print("logic       se = (m == 0 && p == 3) || (m == 1 && p == 2);")
             print("    logic se = ^syndrome_o;")
             print("    assign err_o = {~(ne | se), se};")
-            print("endmodule : prim_secded_lala_73_64_dec")
+            print(f"endmodule : prim_secded_{name}_73_64_dec")
 
-    with open('prim_secded_lala_73_64_cor.v', 'w') as f:
+    with open(f'prim_secded_{name}_73_64_cor.sv', 'w') as f:
         with redirect_stdout(f):
-            print("module prim_secded_lala_73_64_cor (\n"
-                  "    input        [72:0] d_i,\n"
+            print(f"module prim_secded_{name}_73_64_cor (\n"
+                  "    input  logic [72:0] d_i,\n"
                   "    output logic [72:0] d_o,\n"
                   "    output logic  [8:0] syndrome_o,\n"
-                  "    output logic  [1:0] err_o);\n")
+                  "    output logic  [1:0] err_o\n);\n")
 
             for s in range(0, r + 1):
                 print(f"    assign syndrome_o[{8 - s}] = ^(d_i & 73'h{l2u(pcm[s][0:73]):019x});")
-            for d in range(0, k + r + 1):
-                print(f"    assign d_o[{d}] = (syndrome_o == 9'h{l2i(pcm[:,72 - d]):03x}) ^ d_i[{d}];")
+            if cmp == 1:
+                for d in range(0, k + r + 1):
+                    print(f"    assign d_o[{d}] = (syndrome_o == 9'h{l2i(pcm[:,72 - d]):03x}) ^ d_i[{d}];")
+            else:
+                for d in range(0, k):
+                    print(f"    assign d_o[{d}] = (", end='')
+                    n = 0
+                    t = len(pcm[:,72 - d]) - 1
+                    for i,b in enumerate(pcm[:,72 - d]):
+                        if b:
+                            n = n + 1
+                            print(f"syndrome_o[{t - i}]", end='')
+                            if n < 3:
+                                print(" & ", end='')
+                    print(f") ^ d_i[{d}];")
+                for d in range(k, k + r + 1):
+                    print(f"    assign d_o[{d}] = (syndrome_o == 9'h{l2i(pcm[:,72 - d]):03x}) ^ d_i[{d}];")
 
             print("    logic       ne = syndrome_o == 0;")
             print("    logic se = ^syndrome_o;")
             print("    assign err_o = {~(ne | se), se};")
-            print("endmodule : prim_secded_lala_73_64_cor")
+            print(f"endmodule : prim_secded_{name}_73_64_cor")
 
 # Make a list of 0s and 1s an integer
 def l2i(l):
@@ -79,13 +108,6 @@ def l2i(l):
     t = len(l)
     for b in l:
         v = (v << 1) | b
-    return int(v)
-
-def l2ir(l):
-    v = 0
-    t = len(l)
-    for i, b in enumerate(l):
-        v = v | (b << i)
     return int(v)
 
 # Hack to output a 64-bit unsigned integer
@@ -151,31 +173,112 @@ def check_error(syndrome):
     # print("""Double bit error""")
     return 4
 
-# 
+#
 
 # "Single error correcting and double error detecting coding scheme",
 # P.K. Lala, P. Thenappan and M.T. Anwar,
 # IEE ELECTRONICS LETTERS 23rd June 2005 Vol. 41 No. 13
-# Now only 202 ones, which is 14 less than Hsiao codes
-om = np.zeros(shape=(r + 1, k + r + 1), dtype=np.uint32)
-#        c c c c c c c c c  d d d d d d d d  d d d d d d d d  d d d d d d d d  d d d d  d d d d  d d d d d d d d  d d d d d d d d  d d d d d d d d  d d d d d d d d
-#                           6 6 5 5 5 5 5 5  5 5 5 5 5 4 4 4  4 4 4 4 4 4 4 3  3 3 3 3  3 3 3 3  3 3 2 2 2 2 2 2  2 2 2 2 1 1 1 1  1 1 1 1 1 1 0 0  0 0 0 0 0 0 0 0 
-#        8 7 6 5 4 3 2 1 0  3 2 1 9 8 7 6 5  4 3 2 1 0 0 9 8  7 6 5 4 3 2 1 0  9 8 7 6  5 4 3 2  1 0 9 8 7 6 5 4  3 2 1 0 9 8 7 6  5 4 3 2 1 0 9 8  7 6 5 4 3 2 1 0   
-                          
-om[0] = [1,0,0,0,0,0,0,0,0, 1,0,0,0,1,1,0,1, 0,0,0,0,1,0,0,0, 0,0,0,1,0,0,0,0, 0,0,1,0, 0,0,0,1, 0,0,1,0,1,0,1,0, 0,1,1,1,1,0,0,1, 0,1,1,1,0,0,0,0, 1,0,1,0,1,0,0,0] #23
-om[1] = [0,1,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,1, 1,1,0,0,0,0,1,0, 1,0,1,0,1,0,0,0, 0,0,0,0, 0,0,0,1, 1,0,1,0,0,0,1,1, 1,0,1,0,0,0,0,0, 1,1,0,0,1,0,1,0, 0,0,0,0,1,1,1,0] #23
-om[2] = [0,0,1,0,0,0,0,0,0, 0,0,0,1,0,1,0,0, 0,0,0,0,0,1,1,0, 0,0,0,0,0,0,1,1, 0,0,0,1, 0,1,0,0, 0,0,0,1,0,0,0,0, 0,0,0,0,0,0,0,1, 0,0,0,0,1,1,1,1, 0,1,1,1,1,0,1,0] #20
-om[3] = [0,0,0,1,0,0,0,0,0, 1,0,0,0,0,0,0,0, 0,1,1,1,0,0,0,0, 0,0,0,0,0,1,0,1, 1,0,0,0, 0,1,0,0, 0,1,0,1,0,1,0,1, 1,1,0,1,1,1,0,1, 1,1,0,0,0,0,0,0, 0,0,0,0,0,0,0,1] #22
-om[4] = [0,0,0,0,1,0,0,0,0, 0,0,1,1,0,0,1,0, 0,0,0,0,0,0,0,1, 0,0,1,1,0,0,0,0, 1,0,0,0, 1,1,1,1, 1,0,0,0,1,1,0,0, 0,0,0,0,1,1,1,0, 1,0,0,0,0,0,0,1, 1,1,0,0,0,0,0,0] #22
-om[5] = [0,0,0,0,0,1,0,0,0, 0,1,0,0,0,0,1,0, 0,0,0,0,0,0,0,0, 1,1,0,0,0,1,0,0, 0,0,1,1, 0,0,1,0, 0,1,1,0,1,0,0,0, 0,1,0,0,0,1,1,0, 0,0,1,0,0,1,0,0, 0,0,0,0,0,0,1,1] #19
-om[6] = [0,0,0,0,0,0,1,0,0, 0,0,1,0,0,0,0,0, 1,0,0,1,1,1,0,0, 0,1,0,0,0,0,0,0, 0,1,0,0, 1,0,0,0, 0,0,0,1,0,1,1,0, 1,0,0,1,0,0,1,0, 0,0,0,1,1,0,0,0, 1,1,0,1,0,1,0,1] #22
-om[7] = [0,0,0,0,0,0,0,1,0, 0,1,0,0,1,0,0,0, 0,0,1,0,0,0,0,1, 0,0,0,0,1,0,1,0, 0,1,0,0, 1,0,1,0, 1,1,0,0,0,0,0,1, 0,0,1,0,0,0,0,0, 0,0,1,1,0,1,1,1, 0,0,1,1,0,1,0,0] #22
-om[8] = [0,0,0,0,0,0,0,0,1, 1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1, 1,1,1,1, 0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0] #29
+# Now only 201 ones, which is 15 less than Hsiao codes
+lala = np.zeros(shape=(r + 1, k + r + 1), dtype=np.uint32)
+#           c c c c c c c c c  d d d d d d d d  d d d d d d d d  d d d d d d d d  d d d d  d d d d  d d d d d d d d  d d d d d d d d  d d d d d d d d  d d d d d d d d
+#                              6 6 5 5 5 5 5 5  5 5 5 5 5 4 4 4  4 4 4 4 4 4 4 3  3 3 3 3  3 3 3 3  3 3 2 2 2 2 2 2  2 2 2 2 1 1 1 1  1 1 1 1 1 1 0 0  0 0 0 0 0 0 0 0
+#           8 7 6 5 4 3 2 1 0  3 2 1 9 8 7 6 5  4 3 2 1 0 0 9 8  7 6 5 4 3 2 1 0  9 8 7 6  5 4 3 2  1 0 9 8 7 6 5 4  3 2 1 0 9 8 7 6  5 4 3 2 1 0 9 8  7 6 5 4 3 2 1 0
 
-# Easier to find which column matches in case of single error
-mo = np.transpose(om)
+lala[0]  = [1,0,0,0,0,0,0,0,0, 1,0,0,0,1,1,0,1, 0,0,0,0,1,0,0,0, 0,0,0,1,0,0,0,0, 0,0,1,0, 0,0,0,1, 0,0,1,0,1,0,1,0, 0,1,1,1,1,0,0,1, 0,1,1,1,0,0,0,0, 1,0,1,0,1,0,0,0] #23
+lala[1]  = [0,1,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,1, 1,1,0,0,0,0,1,0, 1,0,1,0,1,0,0,0, 0,0,0,0, 0,0,0,1, 1,0,1,0,0,0,1,1, 1,0,1,0,0,0,0,0, 1,1,0,0,1,0,1,0, 0,0,0,0,1,1,1,0] #23
+lala[2]  = [0,0,1,0,0,0,0,0,0, 0,0,0,1,0,1,0,0, 0,0,0,0,0,1,1,0, 0,0,0,0,0,0,1,1, 0,0,0,1, 0,1,0,0, 0,0,0,1,0,0,0,0, 0,0,0,0,0,0,0,1, 0,0,0,0,1,1,1,1, 0,1,1,1,1,0,1,0] #20
+lala[3]  = [0,0,0,1,0,0,0,0,0, 1,0,0,0,0,0,0,0, 0,1,1,1,0,0,0,0, 0,0,0,0,0,1,0,1, 1,0,0,0, 0,1,0,0, 0,1,0,1,0,1,0,1, 1,1,0,1,1,1,0,1, 1,1,0,0,0,0,0,0, 0,0,0,0,0,0,0,1] #22
+lala[4]  = [0,0,0,0,1,0,0,0,0, 0,0,1,1,0,0,1,0, 0,0,0,0,0,0,0,1, 0,0,1,1,0,0,0,0, 1,0,0,0, 1,1,1,1, 1,0,0,0,1,1,0,0, 0,0,0,0,1,1,1,0, 1,0,0,0,0,0,0,1, 1,1,0,0,0,0,0,0] #22
+lala[5]  = [0,0,0,0,0,1,0,0,0, 0,1,0,0,0,0,1,0, 0,0,0,0,0,0,0,0, 1,1,0,0,0,1,0,0, 0,0,1,1, 0,0,1,0, 0,1,1,0,1,0,0,0, 0,1,0,0,0,1,1,0, 0,0,1,0,0,1,0,0, 0,0,0,0,0,0,1,1] #19
+lala[6]  = [0,0,0,0,0,0,1,0,0, 0,0,1,0,0,0,0,0, 1,0,0,1,1,1,0,0, 0,1,0,0,0,0,0,0, 0,1,0,0, 1,0,0,0, 0,0,0,1,0,1,1,0, 1,0,0,1,0,0,1,0, 0,0,0,1,1,0,0,0, 1,1,0,1,0,1,0,1] #22
+lala[7]  = [0,0,0,0,0,0,0,1,0, 0,1,0,0,1,0,0,0, 0,0,1,0,0,0,0,1, 0,0,0,0,1,0,1,0, 0,1,0,0, 1,0,1,0, 1,1,0,0,0,0,0,1, 0,0,1,0,0,0,0,0, 0,0,1,1,0,1,1,1, 0,0,1,1,0,1,0,0] #22
+lala[8]  = [0,0,0,0,0,0,0,0,1, 1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1, 1,1,1,1, 0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0] #29
 
-dump_verilog(om, mo)
+d2428 = np.zeros(shape=(r + 1, k + r + 1), dtype=np.uint32)
+#           c c c c c c c c c  d d d d d d d d  d d d d d d d d  d d d d d d d d  d d d d  d d d d  d d d d d d d d  d d d d d d d d  d d d d d d d d  d d d d d d d d
+#                              6 6 5 5 5 5 5 5  5 5 5 5 5 4 4 4  4 4 4 4 4 4 4 3  3 3 3 3  3 3 3 3  3 3 2 2 2 2 2 2  2 2 2 2 1 1 1 1  1 1 1 1 1 1 0 0  0 0 0 0 0 0 0 0
+#           8 7 6 5 4 3 2 1 0  3 2 1 9 8 7 6 5  4 3 2 1 0 0 9 8  7 6 5 4 3 2 1 0  9 8 7 6  5 4 3 2  1 0 9 8 7 6 5 4  3 2 1 0 9 8 7 6  5 4 3 2 1 0 9 8  7 6 5 4 3 2 1 0
+d2428[0] = [1,0,0,0,0,0,0,0,0, 1,0,0,0,1,1,0,1, 0,0,0,0,1,0,0,0, 0,0,0,1,0,0,0,0, 0,0,1,0, 0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,1,1,1,1,1,1, 1,1,1,1,1,1,1,1] #22
+d2428[1] = [0,1,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,1, 1,1,0,0,0,0,1,0, 1,0,1,0,1,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0,0,0,0,0, 0,1,1,1,1,1,1,1, 1,1,0,0,0,0,0,0, 0,0,0,0,1,1,1,1] #21
+d2428[2] = [0,0,1,0,0,0,0,0,0, 0,0,0,1,0,1,0,0, 0,0,0,0,0,1,1,0, 0,0,0,0,0,0,1,1, 0,0,0,1, 0,0,0,0, 0,1,1,1,1,1,1,1, 1,0,0,0,0,0,1,1, 1,1,0,0,0,0,0,0, 0,0,0,1,0,0,0,0] #21
+d2428[3] = [0,0,0,1,0,0,0,0,0, 1,0,0,0,0,0,0,0, 0,1,1,1,0,0,0,0, 0,0,0,0,0,1,0,1, 1,0,0,0, 1,1,1,1, 1,0,0,0,0,0,1,1, 1,0,0,0,0,1,0,0, 0,1,0,0,0,0,0,0, 1,1,1,1,0,0,0,0] #22
+d2428[4] = [0,0,0,0,1,0,0,0,0, 0,0,1,1,0,0,1,0, 0,0,0,0,0,0,0,1, 0,0,1,1,0,0,0,0, 1,0,0,0, 0,0,0,1, 1,0,0,0,1,1,0,0, 1,0,1,1,1,0,0,0, 1,0,0,0,0,1,1,1, 0,0,1,0,0,0,0,1] #22
+d2428[5] = [0,0,0,0,0,1,0,0,0, 0,1,0,0,0,0,1,0, 0,0,0,0,0,0,0,0, 1,1,0,0,0,1,0,0, 0,0,1,1, 0,1,1,0, 1,0,1,1,0,1,0,1, 0,0,0,0,1,0,0,1, 0,0,0,1,1,0,0,1, 0,0,0,0,0,0,1,0] #21
+d2428[6] = [0,0,0,0,0,0,1,0,0, 0,0,1,0,0,0,0,0, 1,0,0,1,1,1,0,0, 0,1,0,0,0,0,0,0, 0,1,0,0, 1,0,1,1, 0,1,0,1,0,0,0,0, 0,1,0,1,0,1,1,0, 0,0,1,0,1,0,1,0, 0,1,0,0,0,1,0,0] #22
+d2428[7] = [0,0,0,0,0,0,0,1,0, 0,1,0,0,1,0,0,0, 0,0,1,0,0,0,0,1, 0,0,0,0,1,0,1,0, 0,1,0,0, 1,1,0,0, 0,1,1,0,1,0,1,0, 0,1,1,0,0,0,0,0, 0,0,1,1,0,1,0,0, 1,0,0,0,1,0,0,0] #21
+d2428[8] = [0,0,0,0,0,0,0,0,1, 1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1, 1,1,1,1, 0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0] #29
+
+d2332 = np.zeros(shape=(r + 1, k + r + 1), dtype=np.uint32)
+#           c c c c c c c c c  d d d d d d d d  d d d d d d d d  d d d d d d d d  d d d d  d d d d  d d d d d d d d  d d d d d d d d  d d d d d d d d  d d d d d d d d
+#                              6 6 5 5 5 5 5 5  5 5 5 5 5 4 4 4  4 4 4 4 4 4 4 3  3 3 3 3  3 3 3 3  3 3 2 2 2 2 2 2  2 2 2 2 1 1 1 1  1 1 1 1 1 1 0 0  0 0 0 0 0 0 0 0
+#           8 7 6 5 4 3 2 1 0  3 2 1 9 8 7 6 5  4 3 2 1 0 0 9 8  7 6 5 4 3 2 1 0  9 8 7 6  5 4 3 2  1 0 9 8 7 6 5 4  3 2 1 0 9 8 7 6  5 4 3 2 1 0 9 8  7 6 5 4 3 2 1 0
+d2332[0] = [1,0,0,0,0,0,0,0,0, 1,0,0,0,1,1,0,1, 0,0,0,0,1,0,0,0, 0,0,0,1,0,0,0,0, 0,0,1,0, 0,0,0,0, 1,1,1,1,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,1,1, 1,1,1,1,0,0,0,0] #18
+d2332[1] = [0,1,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,1, 1,1,0,0,0,0,1,0, 1,0,1,0,1,0,0,0, 0,0,0,0, 1,1,1,1, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 1,1,1,1,1,1,0,0, 0,0,0,0,0,0,0,0] #18
+d2332[2] = [0,0,1,0,0,0,0,0,0, 0,0,0,1,0,1,0,0, 0,0,0,0,0,1,1,0, 0,0,0,0,0,0,1,1, 0,0,0,1, 0,0,0,0, 1,1,1,1,0,0,0,0, 0,0,1,1,1,1,1,1, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0] #18
+d2332[3] = [0,0,0,1,0,0,0,0,0, 1,0,0,0,0,0,0,0, 0,1,1,1,0,0,0,0, 0,0,0,0,0,1,0,1, 1,0,0,0, 1,1,1,1, 0,0,0,0,1,1,1,1, 1,1,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0] #18
+d2332[4] = [0,0,0,0,1,0,0,0,0, 0,0,1,1,0,0,1,0, 0,0,0,0,0,0,0,1, 0,0,1,1,0,0,0,0, 1,0,0,0, 0,0,0,1, 0,0,0,1,0,0,0,1, 1,1,0,0,0,1,1,1, 0,0,0,1,1,1,0,0, 0,1,1,1,0,1,1,1] #25
+d2332[5] = [0,0,0,0,0,1,0,0,0, 0,1,0,0,0,0,1,0, 0,0,0,0,0,0,0,0, 1,1,0,0,0,1,0,0, 0,0,1,1, 0,0,1,0, 0,0,1,0,0,1,1,0, 0,1,0,1,1,0,0,1, 0,1,1,0,0,1,0,1, 1,0,0,1,1,0,1,1] #25
+d2332[6] = [0,0,0,0,0,0,1,0,0, 0,0,1,0,0,0,0,0, 1,0,0,1,1,1,0,0, 0,1,0,0,0,0,0,0, 0,1,0,0, 0,1,0,0, 0,1,0,0,1,0,1,0, 1,0,1,0,1,0,1,0, 1,0,1,0,1,0,1,0, 1,0,1,0,1,1,0,1] #25
+d2332[7] = [0,0,0,0,0,0,0,1,0, 0,1,0,0,1,0,0,0, 0,0,1,0,0,0,0,1, 0,0,0,0,1,0,1,0, 0,1,0,0, 1,0,0,0, 1,0,0,0,1,1,0,1, 0,0,1,1,0,1,0,0, 1,1,0,1,0,0,1,1, 0,1,0,0,1,1,1,0] #25
+d2332[8] = [0,0,0,0,0,0,0,0,1, 1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1, 1,1,1,1, 0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0] #29
+
+
+def dump(pcm):
+    intlist = []
+    for i in range(36, k + r + 1):
+        row = pcm[i,:]
+        rl = row.tolist()
+        x = l2i(rl)
+        intlist.append(x)
+    intlist.sort()
+    print("\n".join(f'{x:09b}' for x in intlist))
+
+def dumpl(pcm):
+    for i in range(0, k + r + 1):
+        row = pcm[i,:]
+        print(row)
+
+def binlist(pcm):
+    intlist = []
+    for i in range(37, k + r + 1):
+        row = pcm[i,:]
+        rl = row.tolist()
+        x = l2i(rl)
+        intlist.append(x)
+    return intlist
+
+def hamming_distance(code, edoc):
+    xor = code ^ edoc
+    return xor.bit_count()
+
+def total_hamming_distance(pcm):
+    thd = 0
+    codes = binlist(pcm)
+    n = len(codes)
+    for i in range(n):
+        for j in range(i + 1, n):
+            thd = thd + hamming_distance(codes[i], codes[j])
+    print(f"Total Hamming Distance : {thd}")
+
+# print("-------------------")
+# total_hamming_distance(np.transpose(lala))
+# print(sum(np.transpose(lala)))
+# print(sum(sum(np.transpose(lala))))
+# print("-------------------")
+# total_hamming_distance(np.transpose(d2428))
+# print(sum(np.transpose(d2428)))
+# print(sum(sum(np.transpose(d2428))))
+# print("-------------------")
+# total_hamming_distance(np.transpose(d2332))
+# print(sum(np.transpose(d2332)))
+# print(sum(sum(np.transpose(d2332))))
+# sys.exit(0)
+
+
+dump_verilog("lala_cmp", lala)
+dump_verilog("d2428_cmp", d2428)
+dump_verilog("d2332_cmp", d2332)
+sys.exit(0)
 
 def compute_data_enc():
     for x in [0x0000000000000000, 0xffffffffffffffff, 0xdeadbeefdeadbeef, 0x5555555555555555, 0xaaaaaaaaaaaaaaaa, 0x8badf00dcafebabe]:
@@ -225,22 +328,14 @@ def compute_data_dec():
                 print(f"sy {c:09b} ({p:01b}) {vb:016x}")
     sys.exit(1)
 
-def dump(pcm):
-    for i in range(0, k + r + 1):
-        row = pcm[i,:] 
-        rl = row.tolist()
-        x = l2i(rl)
-        print(f"{x:09b}")
-
-dump(mo)
-compute_data_dec()
+#compute_data_dec()
 
 
 # Check that the matrix does not contain twice the same value
 # Crap but since this is a very small array, we'll live with that
 def check_duplicate_rows(pcm):
     for i in range(0, k + r + 1):
-        row = pcm[i,0:8] 
+        row = pcm[i,0:8]
         rl = row.tolist()
         for j in range(i + 1, k + r + 1):
             wor = pcm[j,0:8]
@@ -254,7 +349,7 @@ def check_duplicate_rows(pcm):
 def check_xor_rows(pcm):
     print("Checking rows for xor")
     for i in range(0, k + r + 1):
-        row = pcm[i,:] 
+        row = pcm[i,:]
         rl = row.tolist()
         rr = l2i(rl)
         # print(f'rr:{rr:09b}')
@@ -267,7 +362,7 @@ def check_xor_rows(pcm):
             if xx == 0:
                 print("Xor error !", f"row {i} {row} xor row {j} {wor} = 0")
             for kk in range(0, k + r + 1):
-                orw = pcm[kk,:] 
+                orw = pcm[kk,:]
                 ol = orw.tolist()
                 oo = l2i(ol)
                 # print(f'oo:{oo:09b}')

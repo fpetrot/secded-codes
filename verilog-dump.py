@@ -35,34 +35,12 @@ def dump_verilog(name, cmp, pcm):
         with redirect_stdout(f):
             print(f"module prim_secded_{name}_73_64_dec (\n"
                   "    input  logic [72:0] in,\n"
-                  "    output logic [63:0] d_o,\n"
                   "    output logic  [8:0] syndrome_o,\n"
                   "    output logic  [1:0] err_o\n);\n")
 
             for s in range(0, r + 1):
                 print(f"    assign syndrome_o[{8 - s}] = ^(in & 73'h{l2u(pcm[s][0:73]):019x});")
-            for d in range(0, k):
-                if cmp == 1:
-                    print(f"    assign d_o[{d}] = (syndrome_o == 9'h{l2i(pcm[:,72 - d]):03x}) ^ in[{d}];")
-                else:
-                    print(f"    assign d_o[{d}] = (", end='')
-                    n = 0
-                    t = len(pcm[:,72 - d]) - 1
-                    for i,b in enumerate(pcm[:,72 - d]):
-                        if b:
-                            n = n + 1
-                            print(f"syndrome_o[{t - i}]", end='')
-                            if n < 3:
-                                print(" & ", end='')
-                    print(f") ^ in[{d}];")
-
-            print("    logic  ne = syndrome_o == 0;")
-            # We don't really care whether the error is in the checkbits or residue bit
-            # print("logic       m = syndrome_o[8];")
-            # print("/* verilator lint_off WIDTHEXPAND */")
-            # print("logic [4:0] p = syndrome_o[7] + syndrome_o[6] + syndrome_o[5] + syndrome_o[4] + syndrome_o[3] + syndrome_o[2] + syndrome_o[1] + syndrome_o[0];")
-            # print("logic       ce = (m == 0 && p == 1) || (m == 1 && p == 0);")
-            # print("logic       se = (m == 0 && p == 3) || (m == 1 && p == 2);")
+            print("    logic  ne = (syndrome_o == 0);")
             print("    logic  se = ^syndrome_o;")
             print("    assign err_o = {~(ne | se), se};")
             print(f"endmodule : prim_secded_{name}_73_64_dec")
@@ -95,7 +73,7 @@ def dump_verilog(name, cmp, pcm):
                 for d in range(k, k + r + 1):
                     print(f"    assign d_o[{d}] = (syndrome_o == 9'h{l2i(pcm[:,72 - d]):03x}) ^ d_i[{d}];")
 
-            print("    logic  ne = syndrome_o == 0;")
+            print("    logic  ne = (syndrome_o == 0);")
             print("    logic  se = ^syndrome_o;")
             print("    assign err_o = {~(ne | se), se};")
             print(f"endmodule : prim_secded_{name}_73_64_cor")
@@ -170,9 +148,6 @@ lala[5]  = [0,0,0,0,0,1,0,0,0, 0,1,0,0,0,0,1,0, 0,0,0,0,0,0,0,0, 1,1,0,0,0,1,0,0
 lala[6]  = [0,0,0,0,0,0,1,0,0, 0,0,1,0,0,0,0,0, 1,0,0,1,1,1,0,0, 0,1,0,0,0,0,0,0, 0,1,0,0, 1,0,0,0, 0,0,0,1,0,1,1,0, 1,0,0,1,0,0,1,0, 0,0,0,1,1,0,0,0, 1,1,0,1,0,1,0,1] #22
 lala[7]  = [0,0,0,0,0,0,0,1,0, 0,1,0,0,1,0,0,0, 0,0,1,0,0,0,0,1, 0,0,0,0,1,0,1,0, 0,1,0,0, 1,0,1,0, 1,1,0,0,0,0,0,1, 0,0,1,0,0,0,0,0, 0,0,1,1,0,1,1,1, 0,0,1,1,0,1,0,0] #22
 lala[8]  = [0,0,0,0,0,0,0,0,1, 1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1, 1,1,1,1, 0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0] #29
-total_hamming_distance(np.transpose(lala))
-sys.exit(1)
-
 
 ist = f'{"1" * 3}{"0" * 5}'
 per = distinct_permutations(ist)
@@ -185,6 +160,7 @@ lp = np.concatenate((lp, z), axis=1)
 
 tam = np.concatenate((np.transpose(mat), lp), axis=0)
 
+random.seed(0xdeadbeef)
 for kk in range(100):
     lala = tam
     # Remove 10 rows randomly

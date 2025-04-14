@@ -58,7 +58,7 @@ def dump_verilog(name, pcm):
                                 print(" & ", end='')
                     print(f") ^ in[{d}];")
 
-            print("    logic       ne = syndrome_o == 0;")
+            print("    logic       ne = (syndrome_o == 0);")
             # We don't really care whether the error is in the checkbits or residue bit
             # print("logic       m = syndrome_o[8];")
             # print("/* verilator lint_off WIDTHEXPAND */")
@@ -97,7 +97,7 @@ def dump_verilog(name, pcm):
                 for d in range(k, k + r + 1):
                     print(f"    assign d_o[{d}] = (syndrome_o == 9'h{l2i(pcm[:,72 - d]):03x}) ^ d_i[{d}];")
 
-            print("    logic       ne = syndrome_o == 0;")
+            print("    logic       ne = (syndrome_o == 0);")
             print("    logic se = ^syndrome_o;")
             print("    assign err_o = {~(ne | se), se};")
             print(f"endmodule : prim_secded_{name}_73_64_cor")
